@@ -13,7 +13,7 @@ import React, { useState } from 'react';
         setLoading(true);
         setError('');
         try {
-          const response = await axios.post(${import.meta.env.VITE_API_URL}/api/quizzes/generate, { topic });
+          const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/quizzes/generate`, { topic });
           // Call the callback function from App.jsx with the quiz data
           onQuizCreated(response.data);
         } catch (err) {
