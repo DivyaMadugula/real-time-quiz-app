@@ -1,0 +1,7 @@
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif; /* Poppins is now our default from main.jsx */
+  /* Soft gradient from your design brief */
+  background: linear-gradient(135deg, #fdfbfb, #ebedee);
+  background-attachment: fixed; /* Ensures the gradient doesn't scroll with content */
+}

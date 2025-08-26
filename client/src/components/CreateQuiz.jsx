@@ -1,48 +1,69 @@
 import React, { useState } from 'react';
-    import axios from 'axios';
+import axios from 'axios';
 
-    // It now receives a prop `onQuizCreated`
-    const CreateQuiz = ({ onQuizCreated }) => {
-      // ... (keep all your existing useState hooks: topic, loading, error)
-      const [topic, setTopic] = useState('');
-      const [loading, setLoading] = useState(false);
-      const [error, setError] = useState('');
-      
-      const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
-        try {
-          const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/quizzes/generate`, { topic });
-          // Call the callback function from App.jsx with the quiz data
-          onQuizCreated(response.data);
-        } catch (err) {
-          setError('Failed to generate quiz. Please try again.');
-          console.error(err);
-        } finally {
-          setLoading(false);
-        }
-      };
+// --- THIS IS THE CORRECTED LINE ---
+// Import Box along with the other MUI components
+import { TextField, CircularProgress, InputAdornment, Box } from '@mui/material';
+import { FormContainer, Title, Subtitle, ActionButton, LoadingWrapper } from './CreateQuiz.styles';
+import LightbulbIcon from '@mui/icons-material/Lightbulb'; // A great icon for "topic"
 
-      return (
-        <div>
-          <h2>Create a New Quiz</h2>
-          <form onSubmit={handleSubmit}>
-            <input
-              type="text"
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="Enter a topic"
-              disabled={loading}
-              style={{ padding: '8px', width: '300px' }}
-            />
-            <button type="submit" disabled={loading} style={{ padding: '8px' }}>
-              {loading ? 'Generating...' : 'Generate Quiz'}
-            </button>
-          </form>
-          {error && <p style={{ color: 'red' }}>{error}</p>}
-        </div>
-      );
-    };
+const CreateQuiz = ({ onQuizCreated }) => {
+  const [topic, setTopic] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    export default CreateQuiz;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!topic.trim()) {
+      setError('Please enter a topic.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/quizzes/generate`, { topic });
+      onQuizCreated(response.data);
+    } catch (err) {
+      setError('Failed to generate quiz. Please try again.');
+      console.error('Quiz generation error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box textAlign="center">
+      <Title variant="h4" component="h2">
+        Create a New Quiz
+      </Title>
+      <Subtitle variant="body1" color="text.secondary">
+        Enter any topic, and our AI will do the rest!
+      </Subtitle>
+      <FormContainer component="form" onSubmit={handleSubmit} noValidate>
+        <TextField
+          margin="normal" required fullWidth
+          id="topic" label="Quiz Topic" name="topic"
+          autoFocus value={topic} onChange={(e) => setTopic(e.target.value)}
+          error={!!error} helperText={error}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <LightbulbIcon color="secondary" />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <LoadingWrapper>
+          <ActionButton type="submit" fullWidth variant="contained" disabled={loading}>
+            Generate Quiz
+          </ActionButton>
+          {loading && (
+            <CircularProgress size={24} color="secondary" sx={{ position: 'absolute', top: '50%', left: '50%', marginTop: '-12px', marginLeft: '-12px' }}/>
+          )}
+        </LoadingWrapper>
+      </FormContainer>
+    </Box>
+  );
+};
+
+export default CreateQuiz;

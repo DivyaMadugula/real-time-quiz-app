@@ -5,185 +5,152 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 require('dotenv').config();
 
-// Import Mongoose Models - These are needed for the 'start-quiz' event
 const Quiz = require('./models/Quiz');
 const Question = require('./models/Question');
-
-// Import API routes
 const quizRoutes = require('./routes/quizRoutes');
 
-// --- Basic Setup ---
 connectDB();
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- Create HTTP Server and Attach Socket.io ---
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-     origin: process.env.CLIENT_URL || "http://localhost:5173", // Your React app's address
+     origin: process.env.CLIENT_URL || "http://localhost:5173",
     methods: ["GET", "POST"]
   }
 });
 
-// --- API Routes (handled by Express) ---
-app.get('/', (req, res) => {
-  res.send('API is running...');
-});
+app.get('/', (req, res) => res.send('API is running...'));
 app.use('/api/quizzes', quizRoutes);
 
-
-// --- Real-Time Connection Logic (handled by Socket.io) ---
-
-// This object will store the state of all active quiz rooms
 const quizRooms = {};
 
-io.on('connection', (socket) => {
-  console.log(`---> User Connected: ${socket.id}`);
-
-  // Event handler for when a user joins a quiz room
-  socket.on('join-quiz', ({ username, quizCode }) => {
-    if (!username || !quizCode) {
-        console.log(`---> Invalid join-quiz data from ${socket.id}`);
-        return;
+function advanceToNextQuestion(quizCode) {
+    const room = quizRooms[quizCode];
+    if (!room) return;
+  
+    if (room.players) {
+        room.players.forEach(p => p.hasAnswered = false);
     }
-    
-    console.log(`---> User ${username} (${socket.id}) is joining room: ${quizCode}`);
-    socket.join(quizCode);
-
-    if (!quizRooms[quizCode]) {
-      quizRooms[quizCode] = { players: [] };
-    }
-    
-    quizRooms[quizCode].players.push({ id: socket.id, username: username });
-
-    io.in(quizCode).emit('update-player-list', quizRooms[quizCode].players);
-  });
-
-  // Event handler for when the host starts the quiz
-  socket.on('start-quiz', async (quizCode) => {
-    console.log(`---> Quiz start initiated for room: ${quizCode}`);
-
-    try {
-      // Find the quiz in the database and populate its questions
-      const quiz = await Quiz.findOne({ joinCode: quizCode }).populate('questions');
-      
-      if (quiz && quiz.questions.length > 0) {
-        // Store the full quiz data in our room state for later access
-        quizRooms[quizCode].quizData = quiz;
-        quizRooms[quizCode].currentQuestionIndex = 0;
-
-        const firstQuestion = quiz.questions[0];
-
-        // Emit the 'quiz-started' event to everyone in the room
-        io.in(quizCode).emit('quiz-started');
-        
-        // A short delay before sending the first question
-        setTimeout(() => {
-          io.in(quizCode).emit('next-question', firstQuestion);
-          console.log(`---> Sent first question for quiz ${quizCode}`);
-        }, 1000); // 1-second delay
-
-      } else {
-        console.log(`---> Quiz with code ${quizCode} not found or has no questions.`);
-        socket.emit('error-starting-quiz', 'Quiz could not be found.');
-      }
-    } catch (error) {
-      console.error('Error starting quiz:', error);
-    }
-  });
-
-  // Inside io.on('connection', ...)
-
-  // ... after the 'start-quiz' handler
-
-  // Event handler for a player submitting an answer
-  socket.on('submit-answer', ({ quizCode, answer }) => {
-    try {
-      const room = quizRooms[quizCode];
-      // Find the player in our room state who submitted the answer
-      const player = room.players.find(p => p.id === socket.id);
-      
-      if (!room || !player) return;
-
-      // Get the current question to check the correct answer
+  
+    room.answersReceived = 0;
+    room.currentQuestionIndex++;
+  
+    if (room.currentQuestionIndex < room.quizData.questions.length) {
       const currentQuestion = room.quizData.questions[room.currentQuestionIndex];
-      const isCorrect = currentQuestion.correctAnswer === answer;
-
-      if (isCorrect) {
-        // Award points. Initialize score if it doesn't exist.
-        player.score = (player.score || 0) + 10; 
-      }
-
-      // Send feedback to the player who answered
-      socket.emit('answer-result', { isCorrect });
-
-      // Broadcast the updated scores to everyone in the room
-      io.in(quizCode).emit('update-player-list', room.players);
-
-    } catch (error) {
-      console.error('Error handling answer submission:', error);
-    }
-  });
-
-  // Inside io.on('connection', ...)
-
-  // ... after the 'submit-answer' handler
-
-  // Event handler for the host requesting the next question
-  socket.on('next-question-request', (quizCode) => {
-    try {
-      const room = quizRooms[quizCode];
-      if (!room) return;
-
-      // Move to the next question
-      room.currentQuestionIndex++;
-
-      // Check if the quiz is over
-      if (room.currentQuestionIndex < room.quizData.questions.length) {
-        const nextQuestion = room.quizData.questions[room.currentQuestionIndex];
-        io.in(quizCode).emit('next-question', nextQuestion);
-      } else {
-        // The quiz is over
-        io.in(quizCode).emit('quiz-over', room.players); // Send final scores
-        console.log(`---> Quiz ${quizCode} is over.`);
-        // Clean up the room after a delay
-        setTimeout(() => delete quizRooms[quizCode], 60000); // 1 minute cleanup
-      }
-    } catch (error) {
-      console.error('Error advancing to next question:', error);
-    }
-  });
-
-  
-  
-  // Event handler for when a user disconnects
-  socket.on('disconnect', () => {
-    console.log(`---> User Disconnected: ${socket.id}`);
-
-    for (const quizCode in quizRooms) {
-      const room = quizRooms[quizCode];
-      const playerIndex = room.players.findIndex(p => p.id === socket.id);
-
-      if (playerIndex !== -1) {
-        room.players.splice(playerIndex, 1);
-        io.in(quizCode).emit('update-player-list', room.players);
-        console.log(`---> User ${socket.id} was removed from room ${quizCode}`);
-        
-        if (room.players.length === 0) {
-            delete quizRooms[quizCode];
-            console.log(`---> Room ${quizCode} is now empty and has been closed.`);
+      
+      const questionData = {
+        _id: currentQuestion._id,
+        questionText: currentQuestion.questionText,
+      };
+      io.in(quizCode).emit('show-question', questionData);
+      
+      setTimeout(() => {
+        if (quizRooms[quizCode]) { 
+          const answerData = {
+            options: currentQuestion.options,
+          };
+          io.in(quizCode).emit('show-answers', answerData);
         }
-        break;
-      }
+      }, 4000);
+
+    } else {
+      io.in(quizCode).emit('quiz-over', room.players);
+      setTimeout(() => delete quizRooms[quizCode], 60000);
     }
-  });
+}
+
+io.on('connection', (socket) => {
+    socket.on('join-quiz', ({ username, quizCode }) => {
+        if (!username || !quizCode) return;
+        socket.join(quizCode);
+        if (!quizRooms[quizCode]) {
+            quizRooms[quizCode] = { players: [] };
+        }
+        quizRooms[quizCode].players.push({ id: socket.id, username: username, score: 0, hasAnswered: false, streak: 0 });
+        io.in(quizCode).emit('update-player-list', quizRooms[quizCode].players);
+    });
+
+    socket.on('start-quiz', async (quizCode) => {
+        try {
+            const quiz = await Quiz.findOne({ joinCode: quizCode }).populate('questions');
+            if (quiz && quiz.questions.length > 0) {
+                const room = quizRooms[quizCode];
+                if (!room) return;
+                room.quizData = quiz;
+                room.currentQuestionIndex = -1;
+                room.answersReceived = 0;
+
+                io.in(quizCode).emit('quiz-started');
+                setTimeout(() => advanceToNextQuestion(quizCode), 1000);
+            } else {
+                socket.emit('error-starting-quiz', 'Quiz could not be found.');
+            }
+        } catch (error) {
+            console.error('Error starting quiz:', error);
+        }
+    });
+
+    socket.on('submit-answer', ({ quizCode, answer, timeLeft }) => {
+        try {
+            const room = quizRooms[quizCode];
+            if (!room || !room.quizData) return;
+            
+            const playerIndex = room.players.findIndex(p => p.id === socket.id);
+            if (playerIndex === -1 || room.players[playerIndex].hasAnswered) return;
+
+            room.players[playerIndex].hasAnswered = true;
+            room.answersReceived++;
+
+            const currentQuestion = room.quizData.questions[room.currentQuestionIndex];
+            const isCorrect = currentQuestion.correctAnswer === answer;
+
+            if (isCorrect) {
+                const timeBonus = Math.round((timeLeft / 60) * 5); 
+                room.players[playerIndex].score += (5 + timeBonus);
+                room.players[playerIndex].streak++;
+            } else {
+                room.players[playerIndex].streak = 0;
+            }
+
+            socket.emit('answer-result', { isCorrect });
+            io.in(quizCode).emit('update-player-list', room.players);
+
+            if (room.answersReceived >= room.players.length) {
+                setTimeout(() => {
+                    if (quizRooms[quizCode]) {
+                        io.in(quizCode).emit('show-leaderboard');
+                    }
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Error handling answer submission:', error);
+        }
+    });
+
+    socket.on('next-question-request', (quizCode) => {
+        advanceToNextQuestion(quizCode);
+    });
+  
+    socket.on('disconnect', () => {
+        for (const quizCode in quizRooms) {
+            const room = quizRooms[quizCode];
+            const playerIndex = room.players.findIndex(p => p.id === socket.id);
+            if (playerIndex !== -1) {
+                room.players.splice(playerIndex, 1);
+                io.in(quizCode).emit('update-player-list', room.players);
+                if (room.players.length === 0) {
+                    delete quizRooms[quizCode];
+                } else if (room.quizData && room.answersReceived >= room.players.length) {
+                    io.in(quizCode).emit('show-leaderboard');
+                }
+                break;
+            }
+        }
+    });
 });
 
-
-// --- Start the Server ---
 const PORT = process.env.PORT || 5001;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT} and listening for real-time connections.`);
-});
+server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
