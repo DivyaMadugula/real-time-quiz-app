@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { socket } from '../socket';
-import { Typography, ListItemIcon, ListItemText, Chip, Snackbar } from '@mui/material';
+import { Typography, ListItemIcon, ListItemText, Chip, Snackbar, Avatar } from '@mui/material';
 import {
   LobbyViewContainer, LobbyCard, PlayerList, PlayerListItem, StartButton, ShareCodeBox,
   PlayerAvatar, WaitingText
@@ -12,8 +12,8 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Particles from "react-tsparticles";
 import { loadFull } from "tsparticles";
 
-const QuizLobby = ({ quizCode, isHost }) => {
-  const [players, setPlayers] = useState([]);
+const QuizLobby = ({ quizCode, isHost, initialPlayers = [] }) => {
+  const [players, setPlayers] = useState(initialPlayers);
   const [isPlayingMusic, setIsPlayingMusic] = useState(true);
   const [copied, setCopied] = useState(false);
   const [musicFileExists, setMusicFileExists] = useState(true);
@@ -36,7 +36,12 @@ const QuizLobby = ({ quizCode, isHost }) => {
   };
   
   useEffect(() => {
-    const onPlayerListUpdate = (playerList) => setPlayers(playerList);
+    const onPlayerListUpdate = (playerList) => {
+        // Only update if the list from the server is not empty
+        if (playerList.length > 0) {
+            setPlayers(playerList);
+        }
+    };
     const onQuizStarted = () => setIsPlayingMusic(false);
     
     socket.on('update-player-list', onPlayerListUpdate);
@@ -86,11 +91,9 @@ const QuizLobby = ({ quizCode, isHost }) => {
   return (
     <LobbyViewContainer>
       <Particles id="tsparticles-lobby" init={particlesInit} options={particleOptions} style={{ position: 'absolute', zIndex: 1 }} />
-
       <Typography variant="h2" sx={{ fontWeight: 'bold', mb: 2, color: '#2d3436' }}>
         Get Ready!
       </Typography>
-
       <LobbyCard>
         {musicFileExists && (
           <ReactHowler
@@ -105,15 +108,12 @@ const QuizLobby = ({ quizCode, isHost }) => {
           />
         )}
         <Typography variant="h5">Join with Game Code:</Typography>
-        
-        {/* --- THIS IS THE CORRECTED JSX FOR THE GAME CODE BADGE --- */}
         <ShareCodeBox onClick={handleCopyToClipboard}>
           <Typography variant="h5" sx={{ letterSpacing: '3px', fontWeight: 'bold', mr: 2 }}>
             {quizCode}
           </Typography>
           <ContentCopyIcon fontSize="medium" />
         </ShareCodeBox>
-        
         <Typography variant="h5">Players ({players.length}):</Typography>
         <PlayerList>
           <AnimatePresence>
@@ -135,7 +135,6 @@ const QuizLobby = ({ quizCode, isHost }) => {
             })}
           </AnimatePresence>
         </PlayerList>
-        
         {isHost ? (
           <StartButton variant="contained" onClick={handleStartQuiz}>Start Game!</StartButton>
         ) : (
@@ -144,7 +143,6 @@ const QuizLobby = ({ quizCode, isHost }) => {
           </WaitingText>
         )}
       </LobbyCard>
-      
       <Snackbar open={copied} onClose={() => setCopied(false)} autoHideDuration={2000} message="Code copied to clipboard!" />
     </LobbyViewContainer>
   );

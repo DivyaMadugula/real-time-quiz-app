@@ -1,7 +1,6 @@
 import { styled, keyframes } from '@mui/material/styles';
 import { Box, Button, Paper, List, ListItem, Avatar } from '@mui/material';
 
-// --- This is the main container for the entire lobby VIEW ---
 export const LobbyViewContainer = styled(Box)(({ theme }) => ({
   width: '100vw',
   height: '100vh',
@@ -19,20 +18,19 @@ const pulse = keyframes`
   100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
 `;
 
-// --- NEW GRADIENT CARD STYLE ---
 export const LobbyCard = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3, 4),
   width: '100%',
   maxWidth: '600px',
   textAlign: 'center',
-  background: 'linear-gradient(145deg, #ffffff, #e6e9ff)',
+  background: 'rgba(255, 255, 255, 0.6)',
+  backdropFilter: 'blur(10px)',
+  border: '1px solid rgba(255, 255, 255, 0.3)',
   borderRadius: '20px',
-  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.1)',
-  border: '1px solid rgba(255, 255, 255, 0.8)',
+  boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
   zIndex: 2,
 }));
 
-// --- NEW INTERACTIVE GAME CODE BADGE ---
 export const ShareCodeBox = styled(Box)(({ theme }) => ({
   display: 'inline-flex',
   alignItems: 'center',
@@ -88,11 +86,12 @@ export const StartButton = styled(Button)(({ theme }) => ({
   animation: `${pulse} 2s infinite ease-in-out`,
 }));
 
+// --- THIS IS THE CORRECTED KEYFRAME ANIMATION ---
 const dots = keyframes`
-    0%, 20% { content: '.'; }
-    40% { content: '..'; }
-    60% { content: '...'; }
-    80%, 100% { content: ''; }
+    0%, 20% { content: '"."'; }
+    40% { content: '".."'; }
+    60% { content: '"..."'; }
+    80%, 100% { content: '""'; }
 `;
 
 export const WaitingText = styled(Box)(({ theme }) => ({

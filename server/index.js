@@ -27,6 +27,27 @@ app.use('/api/quizzes', quizRoutes);
 
 const quizRooms = {};
 
+function checkRoundCompletion(quizCode) {
+    const room = quizRooms[quizCode];
+    if (room && room.quizData && room.players.length > 0 && room.answersReceived >= room.players.length) {
+        const currentQuestion = room.quizData.questions[room.currentQuestionIndex];
+        
+        setTimeout(() => {
+            if (quizRooms[quizCode]) {
+                // Step 1: Reveal the correct answer to EVERYONE.
+                io.in(quizCode).emit('reveal-answer', { correctAnswer: currentQuestion.correctAnswer });
+                
+                // Step 2: After a delay, move EVERYONE to the leaderboard screen.
+                setTimeout(() => {
+                    if (quizRooms[quizCode]) {
+                        io.in(quizCode).emit('show-leaderboard');
+                    }
+                }, 3000);
+            }
+        }, 500);
+    }
+}
+
 function advanceToNextQuestion(quizCode) {
     const room = quizRooms[quizCode];
     if (!room) return;
@@ -69,8 +90,15 @@ io.on('connection', (socket) => {
         if (!quizRooms[quizCode]) {
             quizRooms[quizCode] = { players: [] };
         }
-        quizRooms[quizCode].players.push({ id: socket.id, username: username, score: 0, hasAnswered: false, streak: 0 });
+        quizRooms[quizCode].players.push({ id: socket.id, username, score: 0, hasAnswered: false, streak: 0 });
         io.in(quizCode).emit('update-player-list', quizRooms[quizCode].players);
+    });
+
+    socket.on('get-player-list', (quizCode) => {
+        const room = quizRooms[quizCode];
+        if (room && room.players) {
+            socket.emit('update-player-list', room.players);
+        }
     });
 
     socket.on('start-quiz', async (quizCode) => {
@@ -82,7 +110,6 @@ io.on('connection', (socket) => {
                 room.quizData = quiz;
                 room.currentQuestionIndex = -1;
                 room.answersReceived = 0;
-
                 io.in(quizCode).emit('quiz-started');
                 setTimeout(() => advanceToNextQuestion(quizCode), 1000);
             } else {
@@ -93,38 +120,28 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('submit-answer', ({ quizCode, answer, timeLeft }) => {
+    socket.on('submit-answer', ({ quizCode, answer }) => {
         try {
             const room = quizRooms[quizCode];
             if (!room || !room.quizData) return;
-            
             const playerIndex = room.players.findIndex(p => p.id === socket.id);
             if (playerIndex === -1 || room.players[playerIndex].hasAnswered) return;
 
             room.players[playerIndex].hasAnswered = true;
             room.answersReceived++;
-
             const currentQuestion = room.quizData.questions[room.currentQuestionIndex];
             const isCorrect = currentQuestion.correctAnswer === answer;
 
             if (isCorrect) {
-                const timeBonus = Math.round((timeLeft / 60) * 5); 
-                room.players[playerIndex].score += (5 + timeBonus);
-                room.players[playerIndex].streak++;
+                room.players[playerIndex].score = (room.players[playerIndex].score || 0) + 10;
+                room.players[playerIndex].streak = (room.players[playerIndex].streak || 0) + 1;
             } else {
                 room.players[playerIndex].streak = 0;
             }
 
             socket.emit('answer-result', { isCorrect });
             io.in(quizCode).emit('update-player-list', room.players);
-
-            if (room.answersReceived >= room.players.length) {
-                setTimeout(() => {
-                    if (quizRooms[quizCode]) {
-                        io.in(quizCode).emit('show-leaderboard');
-                    }
-                }, 2000);
-            }
+            checkRoundCompletion(quizCode);
         } catch (error) {
             console.error('Error handling answer submission:', error);
         }
@@ -143,8 +160,8 @@ io.on('connection', (socket) => {
                 io.in(quizCode).emit('update-player-list', room.players);
                 if (room.players.length === 0) {
                     delete quizRooms[quizCode];
-                } else if (room.quizData && room.answersReceived >= room.players.length) {
-                    io.in(quizCode).emit('show-leaderboard');
+                } else {
+                    checkRoundCompletion(quizCode);
                 }
                 break;
             }

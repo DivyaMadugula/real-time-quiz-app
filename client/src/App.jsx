@@ -7,23 +7,19 @@ import CreateQuiz from './components/CreateQuiz';
 import JoinQuiz from './components/JoinQuiz';
 import QuizLobby from './components/QuizLobby';
 import QuizView from './components/QuizView';
-import Podium from './components/Podium'; // Import the new Podium component
+import Podium from './components/Podium';
 
 const modalStyle = {
   position: 'absolute',
-  top: '50%',
-  left: '50%',
+  top: '50%', left: '50%',
   transform: 'translate(-50%, -50%)',
   width: 400,
-  
-  // --- FROSTED GLASS EFFECT ---
   background: 'rgba(255, 255, 255, 0.6)',
   backdropFilter: 'blur(10px)',
   border: '1px solid rgba(255, 255, 255, 0.3)',
   borderRadius: '20px',
   boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
-  
-  p: 4, // Padding
+  p: 4,
 };
 
 function App() {
@@ -62,7 +58,7 @@ function App() {
   const handleQuizJoined = (joinData) => {
     setOpenJoinModal(false);
     setUsername(joinData.username);
-    setQuizInfo({ joinCode: joinData.joinCode });
+    setQuizInfo({ joinCode: joinData.quizCode });
     setIsHost(false);
     setView('lobby');
   };
@@ -70,7 +66,7 @@ function App() {
   const renderView = () => {
     switch (view) {
       case 'results':
-        return <Podium players={finalScores} />; // Use the Podium component here
+        return <Podium players={finalScores} />;
       case 'quiz':
         return <QuizView quizCode={quizInfo.joinCode} isHost={isHost} />;
       case 'lobby':
