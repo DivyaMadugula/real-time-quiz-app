@@ -171,8 +171,9 @@
 
 // const PORT = process.env.PORT || 5001;
 // server.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
-const mongoose = require('mongoose'); 
 const express = require('express');
+const app = express();   // ✅ define app early
+const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
@@ -184,7 +185,7 @@ const Question = require('./models/Question');
 const quizRoutes = require('./routes/quizRoutes');
 
 // Initialize express
-const app = express();
+
 connectDB();
 
 // Middleware
